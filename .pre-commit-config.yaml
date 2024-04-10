@@ -1,0 +1,38 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+        exclude: 'data/|ex1/'
+      - id: check-symlinks
+        exclude: 'data/|ex1/'
+      - id: destroyed-symlinks
+        exclude: 'data/|ex1/'
+      - id: trailing-whitespace
+        exclude: 'data/|ex1/'
+      - id: end-of-file-fixer
+        exclude: 'data/|ex1/'
+      - id: mixed-line-ending
+        exclude: 'data/|ex1/'
+      - id: check-yaml
+        exclude: 'data/|ex1/'
+      - id: check-json
+        exclude: 'data/|ex1/'
+      - id: check-merge-conflict
+        exclude: 'data/|ex1/'
+      - id: detect-private-key
+        exclude: 'data/|ex1/'
+      - id: check-case-conflict
+        exclude: 'data/|ex1/'
+  - repo: https://github.com/python/black
+    rev: 23.11.0
+    hooks:
+      - id: black
+        language_version: python3
+        exclude: 'data/|ex1/'
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [ "--profile", "black", "--filter-files" ]
+        exclude: 'data/|ex1/'

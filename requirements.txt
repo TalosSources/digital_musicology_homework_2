@@ -1,0 +1,12 @@
+numpy
+scipy
+matplotlib
+pandas
+seaborn
+music21
+iteration_utilities
+git+https://github.com/quadrismegistus/prosodic.git
+
+black
+isort
+pre-commit
