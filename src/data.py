@@ -49,7 +49,7 @@ def get_composer_pieces(composers, df=None):
     return df.loc[df["composer"].isin(composers)]
 
 
-def get_midi_performance_pairs(df, json_data, time_signature):
+def get_midi_performance_pairs(df, json_data, time_signature, exclude_path):
     """
     Loads pairs of midi beats and its performed version
 
@@ -91,10 +91,12 @@ def get_midi_performance_pairs(df, json_data, time_signature):
         return beats_list_dict
 
     else:
-        return create_midi_performance_pairs(df, json_data, time_signature)
+        return create_midi_performance_pairs(
+            df, json_data, time_signature, exclude_path
+        )
 
 
-def create_midi_performance_pairs(df, json_data, time_signature):
+def create_midi_performance_pairs(df, json_data, time_signature, exclude_path):
     """
     Creates pairs of midi beats and its performed version
 
@@ -122,13 +124,21 @@ def create_midi_performance_pairs(df, json_data, time_signature):
 
     for i, row in tqdm(df.iterrows(), total=df.shape[0]):
         performance_path = row["midi_performance"]
-        if "Bach/Prelude/bwv_885/" in performance_path:
+        if "Bach/Prelude/bwv_885" in performance_path:
             continue  # json for this dir is broken (wrong midi beats: 1.42 instead of 0.5)
         ts_dict = json_data[performance_path]["midi_score_time_signatures"]
 
         if len(ts_dict) == 1:  # filter out pieces with more than one time signature
             ts = ts_dict.popitem()[1][0]  # extract time signature str from dict
             # filter out pieces with other time signatures than the desired one
+
+            if exclude_path is not None and exclude_path in performance_path:
+                if ts != time_signature:
+                    raise ValueError(
+                        "Exclude path time signature is different from the given"
+                    )
+                continue  # this path should not be used
+
             if ts == time_signature:
                 midi_beats = json_data[performance_path]["midi_score_beats"]
                 midi_downbeats = json_data[performance_path]["midi_score_downbeats"]

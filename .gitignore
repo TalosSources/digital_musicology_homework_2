@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# MIDI SF2
+*.sf2
+
 # C extensions
 *.so
 

@@ -243,32 +243,3 @@ def get_estimator_predictions(
     velocity_beats_estimated_list = velocity_estimator.estimate(**test_beats_list_dict)
 
     return performance_beats_estimated_list, velocity_beats_estimated_list
-
-
-# def get_random_estimate(means, variances, test_list, idx):
-#     beat_indices, beats_per_measure = get_beat_indices(
-#         test_list["midi_beats_list"],
-#         test_list["midi_downbeats_list"],
-#         test_list["bpm_list"],
-#     )
-#     performance_beat_durations = get_beat_durations(test_list["performance_beats_list"])
-#     midi_beat_durations = get_beat_durations(test_list["midi_beats_list"])
-#     midi_beats = test_list["midi_beats_list"][idx]
-#     indices = beat_indices[idx]
-#     performance_durations = performance_beat_durations[idx]
-#     midi_durations = midi_beat_durations[idx]
-#     midi_bpm = test_list["bpm_list"][idx]
-#     estimated_durations = []
-#     for j in indices:
-#         ind = int(j)
-#         estimated_durations.append(
-#             np.sqrt(variances[ind]) * np.random.randn() + means[ind] + midi_bpm
-#         )  # Compute random durations from a normal distribution with mean and variance obtained from the train sub-corpus
-
-#     # Plot results
-#     fig, ax = plt.subplots()
-#     ax.plot(midi_beats[:-1], estimated_durations, label="Estimated bpm")
-#     ax.plot(midi_beats[:-1], performance_durations, label="Performance bpm")
-#     ax.plot(midi_beats[:-1], midi_durations, label="MIDI bpm")
-#     ax.legend()
-#     fig.savefig("test.png")
