@@ -25,10 +25,11 @@ For the analysis: there's many interpretations for this piece in the dataset. We
 11. It seems that human performance is almost twice as fast as original one (it seems that bar 8 in original midi corresponds to bar 16 in performances, bar 19 to bar 33 and bar 39, see `Hou06M.mid`, `JeonH06.mid`).
 12. Smooth velocity transitioning between bars with "volume marks" (p and pp, for example) (for example, check bar 20-21 transitioning in midi and 33-36 in `Hou06M.mid`, 39-42 in `JeonH06.mid`)
 13. Check if there is correlation between duration of notes and velocity?
+14. Fix broken trilles lol
 
 # What to model
 * we should take care of / investigate of 11 and 12
-* 4, 7, maybe 9,and 13 seem important and feasible to model
+* 4, 7, maybe 9,and 13 seem important and feasible  to model
 * 3, 5, 8, and 10 seem hard to model without hardcoding it
 * 6 we can drop
 

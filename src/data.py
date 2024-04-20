@@ -6,10 +6,48 @@ from pathlib import Path
 import music21
 import numpy as np
 import pandas as pd
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 2000)
+pd.set_option('display.float_format', '{:20,.2f}'.format)
+pd.set_option('display.max_colwidth', None)
 from tqdm.auto import tqdm
+from pprint import pprint
+
+import xml.etree.ElementTree as ET
 
 ROOT_PATH = Path(__file__).absolute().resolve().parent.parent
 DATASET_PATH = ROOT_PATH / "data" / "asap-dataset"
+
+def parse_by_hand(path):
+    tree = ET.parse(path)
+    root = tree.getroot()
+
+    # Find all notes in the XML
+    notes = root.findall('.//note')
+
+    # Create a list to store voice information
+    voice_info = []
+
+    # Iterate over each note
+    for note in notes:
+        pitch = note.find('.//pitch')
+        step = None
+        octave = None
+        if pitch is not None:
+            step = pitch.find('step').text
+            octave = pitch.find('octave').text
+        try:
+            duration = note.find('duration').text
+        except:
+            duration = None
+        try:
+            voice = note.find('voice').text
+        except:
+            voice = None
+        voice_info.append((step, octave, duration, voice))
+    
+    pprint(voice_info)
 
 
 def get_dataset_metadata(composer):
@@ -240,6 +278,62 @@ def get_events_table_from_score(sample_score):
             "event_type",
             "onset_in_measure",
             "onset_in_score",
+            "duration",
+            "velocity",
+            "tie_info",
+        ],
+    )
+    return rhythm_data_df
+
+# taken from the exercise session
+def get_events_table_from_score_2(sample_score: music21.stream.Score):
+    rhythm_data_list = []
+    for i, clef in enumerate(sample_score.parts):
+        global_onset = 0
+        for measure in clef.getElementsByClass("Measure"):
+            for event in measure.recurse():
+                label = ""
+                velocity = 0
+                pitch = ""
+                if isinstance(event, music21.note.Note):
+                    label = "sounded"
+                    pitch = event.pitch
+                    velocity = event.volume.velocity
+                if isinstance(event, music21.note.Rest):
+                    label = "unsounded"
+                try:
+                    tie_info = "tie_" + event.tie.type
+                except AttributeError:
+                    tie_info = ""
+                if label != "":
+                    if label == 'sounded' and velocity == None:
+                        voice = 2
+                    else:
+                        voice = 1
+                    global_onset = ((measure.measureNumber - 1) * 8) + event.offset
+
+                    rhythm_data_list.append(
+                        (
+                            voice,
+                            measure.measureNumber,
+                            label,
+                            event.offset,
+                            global_onset,
+                            pitch,
+                            event.duration.quarterLength,
+                            velocity,
+                            tie_info,
+                        )
+                    )
+    rhythm_data_df = pd.DataFrame(
+        rhythm_data_list,
+        columns=[
+            "voice",
+            "measure_number",
+            "event_type",
+            "onset_in_measure",
+            "onset_in_score",
+            "pitch",
             "duration",
             "velocity",
             "tie_info",
