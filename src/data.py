@@ -1,52 +1,53 @@
 import json
 import math
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
+from pprint import pprint
 
 import music21
 import numpy as np
 import pandas as pd
-pd.set_option('display.max_rows', None)
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 2000)
-pd.set_option('display.float_format', '{:20,.2f}'.format)
-pd.set_option('display.max_colwidth', None)
 from tqdm.auto import tqdm
-from pprint import pprint
 
-import xml.etree.ElementTree as ET
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", 2000)
+pd.set_option("display.float_format", "{:20,.2f}".format)
+pd.set_option("display.max_colwidth", None)
 
 ROOT_PATH = Path(__file__).absolute().resolve().parent.parent
 DATASET_PATH = ROOT_PATH / "data" / "asap-dataset"
+
 
 def parse_by_hand(path):
     tree = ET.parse(path)
     root = tree.getroot()
 
     # Find all notes in the XML
-    notes = root.findall('.//note')
+    notes = root.findall(".//note")
 
     # Create a list to store voice information
     voice_info = []
 
     # Iterate over each note
     for note in notes:
-        pitch = note.find('.//pitch')
+        pitch = note.find(".//pitch")
         step = None
         octave = None
         if pitch is not None:
-            step = pitch.find('step').text
-            octave = pitch.find('octave').text
+            step = pitch.find("step").text
+            octave = pitch.find("octave").text
         try:
-            duration = note.find('duration').text
+            duration = note.find("duration").text
         except:
             duration = None
         try:
-            voice = note.find('voice').text
+            voice = note.find("voice").text
         except:
             voice = None
         voice_info.append((step, octave, duration, voice))
-    
+
     pprint(voice_info)
 
 
@@ -285,6 +286,7 @@ def get_events_table_from_score(sample_score):
     )
     return rhythm_data_df
 
+
 # taken from the exercise session
 def get_events_table_from_score_2(sample_score: music21.stream.Score):
     rhythm_data_list = []
@@ -306,7 +308,7 @@ def get_events_table_from_score_2(sample_score: music21.stream.Score):
                 except AttributeError:
                     tie_info = ""
                 if label != "":
-                    if label == 'sounded' and velocity == None:
+                    if label == "sounded" and velocity == None:
                         voice = 2
                     else:
                         voice = 1
