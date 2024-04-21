@@ -35,7 +35,7 @@ def run_transfer(midi_root_path, save_audio):
     xml_path = DATASET_PATH / midi_root_path / "xml_score.musicxml"
     midi_path = DATASET_PATH / midi_root_path / "midi_score.mid"
 
-    generated_score = interpret(midi_path)
+    generated_score = interpret(midi_path, xml_path)
     save_midi(
         generated_score=generated_score,
         original_midi_path=midi_path,
