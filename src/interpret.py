@@ -6,48 +6,81 @@ import music21
 import src.data as data
 
 # taken from music21
-DEFAULT_VELOCITY = 0.7086600000000001 * 127
+DEFAULT_VELOCITY = 30
+
+def is_left_hand(element): 
+    for i in range(6):
+        print(element)
+        element = element.activeSite
+        if element is None:
+            return
+    
 
 
-def is_rh_accompaniement(element: music21.note.Note):
+def is_rh_accompaniement_naive(element: music21.note.Note):
     d: music21.Duration = element.duration
     return d.quarterLength == Fraction(1, 3)
 
+def is_rh_accompaniement_xml(element):
+    print(f"Note duration: {element.duration.quarterLength}, note voice: {element.activeSite.id}")
+    return (isinstance(element, music21.note.Note) or isinstance(element, music21.note.Rest)) and isinstance(element.activeSite, music21.stream.Voice) and element.activeSite.id == "2"
 
-def idea_4(element: music21.note.Note, score: music21.stream.Score):
-    """
-    Add an ascending bell curve shape to velocity
-    and speed for accommpaniment right-hand 8th notes
-    """
-    pos_in_motif = (element.offset * 3) % 6
+def bell_curve_velocity_and_timing(measure, element, offset):
+    pos_in_motif = (offset * 3) % 6
     bell_curve = -(pos_in_motif**2) + 5 * pos_in_motif
-    v = element.volume.velocity
-    # if v is None:
-    #     v = 28
-    # I do this because the accompaniment seems to loud on the unperformed midi
-    v -= 10  # think if we need this
-    # the 6 8th note motif's velocities form a clear bell curve in many recordings
-    velocity_increase = 0.8 * bell_curve
-    element.volume.velocity = v + velocity_increase
 
+    # velocity manipulation
+    if isinstance(element, music21.note.Note):
+        v = element.volume.velocity
+        if v is None:
+            v = 28
+        # I do this because the accompaniment seems to loud on the unperformed midi
+        v -= 10  # think if we need this
+        # the 6 8th note motif's velocities form a clear bell curve in many recordings
+        velocity_increase = 0.8 * bell_curve
+        element.volume.velocity = v + velocity_increase
+
+    # tempo manipulation
     # t = get_current_tempo(score, element.offset)
     base_tempo = 120
-    t2 = base_tempo + 2.5 * bell_curve
-    if (element.offset * 3) % 24 == 23:  # if we're in the beat just before
-        # I do this to delay each beat after the last of th 6 8th note,
-        # as can be clearly heard in Kociuban's performance
-        # But actually, it's not each beat, it's just before the melody.
-        # If we can detect the melody, we can do it automatically
-        t2 = base_tempo - 15
+    t2 = base_tempo + 8 * bell_curve
+
+    #if (offset * 3) % 24 == 23:  # if we're in the beat just before
+    #    # I do this to delay each beat after the last of th 6 8th note,
+    #    # as can be clearly heard in Kociuban's performance
+    #    # But actually, it's not each beat, it's just before the melody.
+    #    # If we can detect the melody, we can do it automatically
+    #    t2 = base_tempo - 15
 
     # setting the new tempo at that offset
     m = music21.tempo.MetronomeMark(number=t2)
-    m.offset = element.offset
-    print(f"inserting tempo change {m} ({t2})")
-    score.insert(element.offset, m)
+    m.offset = offset
+    #print(f"inserting tempo change {m} ({t2}) at offset {m.offset}")
+    measure.insert(offset, m)
+
+def idea_4(score: music21.stream.Score):
+    """
+    Add an ascending bell curve shape to velocity
+    and speed for accompaniment right-hand 8th notes
+    """
+    print("start idea4")
+    for element in score.recurse():
+        if is_rh_accompaniement_xml(element):
+            #offset = flat_notes.elementOffset(element)
+            offset = element.offset
+            bell_curve_velocity_and_timing(score, element, offset)
+
+    for part in score.parts:
+        for measure in part.getElementsByClass("Measure"):
+            for element in measure.recurse():
+                if isinstance(element, music21.note.Note) and is_rh_accompaniement_xml(element):
+                    offset = element.offset # Offset in measure => we insert the tempo mark in measure
+                    bell_curve_velocity_and_timing(measure, element, offset)
+     
+    print("end idea4")
 
 
-def get_current_tempo(score, offset):
+def get_tempo_at_offset(score, offset):
     tempo_closest_to_offset = 120
     for event in score.flat.getElementsByClass(music21.tempo.MetronomeMark):
         if event.offset <= offset:
@@ -129,14 +162,24 @@ def idea_12(score):
 def set_default_velocity(score):
     for element in score.recurse():
         if isinstance(element, music21.note.Note):
+            is_left_hand(element)
             if element.volume.velocity is None:
+                print(f"found none note: duration={element.duration.quarterLength}")
                 # default volume from music21
                 element.volume.velocity = DEFAULT_VELOCITY
+            else: 
+                print(f"not none: {element.volume.velocity}, duration = {element.duration.quarterLength}")
+
+def offset_all_velocities(score, offset):
+    for element in score.recurse():
+        if isinstance(element, music21.note.Note):
+            if element.volume.velocity is not None:
+                element.volume.velocity += offset
 
 
 # Main function of the assignment, takes an unperformed MIDI or
 #  XML path and outputs a performed midi
-def interpret(unperformed_path, xml_path):
+def interpret(midi_path, xml_path):
     """
     Main idea:
         Velocity changes can be done "in-place".
@@ -155,10 +198,8 @@ def interpret(unperformed_path, xml_path):
             local: for example, the 8th note being rushed a bit or coming too late, without affecting the rest
             global: for example, slowing down at the end of a phrase. This should affect all the score (displace everything by a bit)
     """
-    unperformed_score: music21.stream.Score = music21.converter.parse(unperformed_path)
+    midi_score: music21.stream.Score = music21.converter.parse(midi_path)
     xml_score: music21.stream.Score = music21.converter.parse(xml_path)
-
-    set_default_velocity(xml_score)
 
     # Let's say I have a note n of onset o, duration d.
     # If I want to make it f times as long (in other words, stretch the time by f between o and o+d):
@@ -174,19 +215,17 @@ def interpret(unperformed_path, xml_path):
 
     timing_modifier = []
 
-    idea_12(xml_score)
+    set_default_velocity(xml_score)
 
-    # idea 4 start
-    for element in xml_score.recurse():
-        if isinstance(element, music21.note.Note):
-            if isinstance(element.activeSite, music21.stream.Voice):
-                if element.activeSite.id == "2":
-                    idea_4(element, xml_score)
-    # idea 4 end
+    #idea_12(xml_score)
+
+    #idea_4(xml_score)
+                    
+    #offset_all_velocities(xml_score, -20)
 
     performed_score = xml_score
 
     # we will write midi in run_transfer
-    # performed_score.write("midi", './result.mid')
+    performed_score.write("midi", './result.mid')
 
     return performed_score
