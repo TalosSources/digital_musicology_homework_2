@@ -2,6 +2,7 @@ import math
 from fractions import Fraction
 
 import music21
+import pretty_midi
 
 import src.data as data
 
@@ -22,7 +23,7 @@ def is_rh_accompaniement_naive(element: music21.note.Note):
     return d.quarterLength == Fraction(1, 3)
 
 def is_rh_accompaniement_xml(element):
-    print(f"Note duration: {element.duration.quarterLength}, note voice: {element.activeSite.id}")
+    #print(f"Note duration: {element.duration.quarterLength}, note voice: {element.activeSite.id}")
     return (isinstance(element, music21.note.Note) or isinstance(element, music21.note.Rest)) and isinstance(element.activeSite, music21.stream.Voice) and element.activeSite.id == "2"
 
 def bell_curve_velocity_and_timing(measure, element, offset):
@@ -35,7 +36,7 @@ def bell_curve_velocity_and_timing(measure, element, offset):
         if v is None:
             v = 28
         # I do this because the accompaniment seems to loud on the unperformed midi
-        v -= 10  # think if we need this
+        #v -= 10  # think if we need this
         # the 6 8th note motif's velocities form a clear bell curve in many recordings
         velocity_increase = 0.8 * bell_curve
         element.volume.velocity = v + velocity_increase
@@ -43,7 +44,7 @@ def bell_curve_velocity_and_timing(measure, element, offset):
     # tempo manipulation
     # t = get_current_tempo(score, element.offset)
     base_tempo = 120
-    t2 = base_tempo + 8 * bell_curve
+    t2 = base_tempo + 3 * bell_curve
 
     #if (offset * 3) % 24 == 23:  # if we're in the beat just before
     #    # I do this to delay each beat after the last of th 6 8th note,
@@ -162,18 +163,75 @@ def idea_12(score):
 
                 element.volume.velocity = new_velocity
 
+def overwrite_velocities(score: music21.stream.Score):
+    to_remove = []
+    current_dynamic = 30
+    for element in score.recurse():
+        if isinstance(element, music21.dynamics.Dynamic) or isinstance(element, music21.dynamics.DynamicWedge):
+            #to_remove.append(element)
+            if isinstance(element, music21.dynamics.Dynamic):
+                current_dynamic = 127 * element.volumeScalar
+        elif isinstance(element, music21.note.Note) or isinstance(element, music21.chord.Chord):
+            element.articulations.clear()
+            if element.duration.quarterLength == Fraction(1,3):
+                # not the main melody
+                voice_highlighting = -15
+            else:
+                voice_highlighting = 10
+            element.volume.velocity = current_dynamic + voice_highlighting
+    for e in to_remove:
+        e.activeSite.remove(e)
 
 def set_default_velocity(score):
     iterate_over_dynamics(score)
     for element in score.recurse():
         if isinstance(element, music21.note.Note):
             is_left_hand(element)
-            if element.volume.velocity is None:
+            if element.volume.velocity is None: 
                 print(f"found none note: duration={element.duration.quarterLength}")
                 # default volume from music21
                 element.volume.velocity = DEFAULT_VELOCITY
             else: 
                 print(f"not none: {element.volume.velocity}, duration = {element.duration.quarterLength}")
+
+def merge_hands(score: music21.stream.Score):
+    new_left = music21.stream.Part()
+    right_hand = score.parts[0]
+    left_hand = score.parts[1]
+    #for element in left_hand.flat.notes:
+    #    print("offset", element.offset)
+    #    right_hand.insert(element.offset, element)
+    #left_hand.activeSite.remove(left_hand)
+    # Create a new Score object with the merged part
+
+    for n in left_hand.getElementsByClass("Measure"):
+        new_left.insert(n.offset, n)
+    score.remove(left_hand)
+    score.remove(right_hand)
+    score.insert(0, new_left)
+    return score
+
+def add_pedal(midi_path):
+    midi_data = pretty_midi.PrettyMIDI(midi_path)
+    left_hand = midi_data.instruments[0]
+    pedal_changes = []
+    for note in left_hand.notes:
+        if note.start in pedal_changes:
+            continue
+        pedal_changes.append(note.start)
+    
+    sustain_pedal_start = pretty_midi.ControlChange(number=64, value=127, time=0) # start with pedal
+    left_hand.control_changes.append(sustain_pedal_start)
+    for t in pedal_changes:
+        add_at(0, t+0.1, left_hand)
+        add_at(100, t+0.2, left_hand)
+    midi_data.write(midi_path)
+
+def add_at(value, time, inst):
+    for i in range(128):
+        inst.control_changes.append(pretty_midi.ControlChange(number=i, value=value, time=time))
+
+
 
 def offset_all_velocities(score, offset):
     for element in score.recurse():
@@ -220,17 +278,21 @@ def interpret(midi_path, xml_path):
 
     timing_modifier = []
 
-    set_default_velocity(xml_score)
+    #set_default_velocity(xml_score)
+    overwrite_velocities(xml_score) 
 
-    #idea_12(xml_score)
+    idea_12(xml_score)
 
-    #idea_4(xml_score)
+    idea_4(xml_score)
                     
     #offset_all_velocities(xml_score, -20)
+    #xml_score = merge_hands(xml_score)
 
     performed_score = xml_score
 
     # we will write midi in run_transfer
-    performed_score.write("midi", './result.mid')
+    './result.mid'
+    performed_score.write("midi", midi_path)
+    add_pedal(midi_path)
 
     return performed_score
