@@ -88,6 +88,10 @@ def get_tempo_at_offset(score, offset):
         else:
             return tempo_closest_to_offset
 
+def iterate_over_dynamics(score):
+    for event in score.flat.getElementsByClass(music21.dynamics.Dynamic):
+        print("event", event, event.offset)
+
 
 def idea_12(score):
     """
@@ -160,6 +164,7 @@ def idea_12(score):
 
 
 def set_default_velocity(score):
+    iterate_over_dynamics(score)
     for element in score.recurse():
         if isinstance(element, music21.note.Note):
             is_left_hand(element)
