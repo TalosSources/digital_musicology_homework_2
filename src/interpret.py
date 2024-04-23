@@ -235,11 +235,62 @@ def idea_13(unperformed_midi, performed_midi):
     return avg_vel, std_vel
 
 
+def overwrite_part_velocities(
+    score: music21.stream.Score, right_hand_dynamics: list[tuple], part: str
+):
+    current_dynamic_index = 0
+    for element in score.recurse():
+        if isinstance(element, music21.note.Note) or isinstance(
+            element, music21.chord.Chord
+        ):
+            element_offset = element.getOffsetInHierarchy(score)
+
+            # do for one part, then repeat for another
+            if (
+                element.activeSite.activeSite.activeSite == score.parts[1]
+                and part != "1"
+            ):
+                continue  # skip this element
+
+            # update the current_dynamic_index
+            element_offset = element.getOffsetInHierarchy(score)
+            try:
+                if element_offset >= right_hand_dynamics[current_dynamic_index + 1][1]:
+                    print("incr index")
+                    current_dynamic_index += 1
+            except:
+                # nothing
+                print("nothing")
+            element.articulations.clear()
+
+            if element.duration.quarterLength == Fraction(1, 3):
+                # if it's the right hand accompaniment
+                voice_highlighting = 0.4
+            elif (
+                element.activeSite.activeSite.activeSite == score.parts[0]
+            ):  # if it's the right hand melody, highlight
+                voice_highlighting = 0.9
+            else:  # it's the left hand chords
+                voice_highlighting = 0.6
+            try:
+                element.volume.velocity = (
+                    right_hand_dynamics[current_dynamic_index][0] * voice_highlighting
+                )
+            except:
+                # print("l o r r : ", element.activeSite.activeSite == score.parts[0])
+                # print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
+                element.volume.velocity = (
+                    element.volume.getDynamicContext().volumeScalar * voice_highlighting
+                )
+                print("set at ", element.volume.velocity)
+            # if isinstance(element.activeSite.activeSite, music21.stream.Measure) and element.activeSite.activeSite.measureNumber in [6,7]:
+            # print("note:", element.duration, element.volume.velocity, element.volume.getRealized())
+
+
 def overwrite_velocities(score: music21.stream.Score):
     to_remove = []
     right_hand_dynamics = [(127 * 0.25, 0)]
     current_dynamic_index = -1
-    already_reset = False
     for element in score.recurse():
         # print("elem", element)
         if isinstance(element, music21.dynamics.Dynamic) or isinstance(
@@ -263,55 +314,24 @@ def overwrite_velocities(score: music21.stream.Score):
                     element.volumeScalar,
                     "dynamic becomes",
                     right_hand_dynamics[current_dynamic_index][0],
+                    right_hand_dynamics[current_dynamic_index][-1],
                 )
                 # else:
                 #    print("removed ppp at ", element.offset)
             else:
                 print("element", element)
                 print("active site", element.activeSite.activeSite)
-        elif isinstance(element, music21.note.Note) or isinstance(
-            element, music21.chord.Chord
-        ):
-            if element.activeSite.activeSite.activeSite == score.parts[1]:
-                if not already_reset:
-                    print("reset index")
-                    current_dynamic_index = 0
-                    already_reset = True
-                # update the current_dynamic_index
-                element_offset = element.getOffsetInHierarchy(score)
-                try:
-                    if (
-                        element_offset
-                        >= right_hand_dynamics[current_dynamic_index + 1][1]
-                    ):
-                        print("incr index")
-                        current_dynamic_index += 1
-                except:
-                    # nothing
-                    print("nothing")
-            element.articulations.clear()
-            if element.duration.quarterLength == Fraction(1, 3):
-                # if it's the right hand accompaniment
-                voice_highlighting = 0.4
-            elif (
-                element.activeSite.activeSite.activeSite == score.parts[0]
-            ):  # if it's the right hand melody, highlight
-                voice_highlighting = 0.9
-            else:  # it's the left hand chords
-                voice_highlighting = 0.6
-            try:
-                element.volume.velocity = (
-                    right_hand_dynamics[current_dynamic_index][0] * voice_highlighting
-                )
-            except:
-                # print("l o r r : ", element.activeSite.activeSite == score.parts[0])
-                # print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
-                element.volume.velocity = (
-                    element.volume.getDynamicContext().volumeScalar * voice_highlighting
-                )
-                print("set at ", element.volume.velocity)
-            # if isinstance(element.activeSite.activeSite, music21.stream.Measure) and element.activeSite.activeSite.measureNumber in [6,7]:
-            # print("note:", element.duration, element.volume.velocity, element.volume.getRealized())
+    # note that score.recurse does not look on dynamics before the notes
+    # (some notes may be in loop before the dynamics in the same measure)
+    # so we use two for-loops instead of one
+    # the same problem occurs for parts, so we do them separately
+    overwrite_part_velocities(score, right_hand_dynamics, part="0")
+    overwrite_part_velocities(score, right_hand_dynamics, part="1")
+
+    print("smoothing via idea 12")
+    idea_12(score)
+
+    print("removing dynamics marks from score")
     for e in to_remove:
         e.activeSite.remove(e)
 
