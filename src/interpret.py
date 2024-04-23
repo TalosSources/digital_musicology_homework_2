@@ -1,10 +1,9 @@
-import math
 from fractions import Fraction
 
 import music21
 import pretty_midi
 
-import src.data as data
+import numpy as np
 
 # taken from music21
 DEFAULT_VELOCITY = 30
@@ -197,20 +196,58 @@ def idea_13(unperformed_midi, performed_midi):
 
 def overwrite_velocities(score: music21.stream.Score):
     to_remove = []
-    current_dynamic = 30
+    right_hand_dynamics = [(127 * 0.25, 0)]
+    current_dynamic_index = -1
+    already_reset = False
     for element in score.recurse():
+        #print("elem", element)
         if isinstance(element, music21.dynamics.Dynamic) or isinstance(element, music21.dynamics.DynamicWedge):
-            #to_remove.append(element)
-            if isinstance(element, music21.dynamics.Dynamic):
-                current_dynamic = 127 * element.volumeScalar
+            to_remove.append(element)
+            print("remomving")
+            if isinstance(element, music21.dynamics.Dynamic) and element.activeSite.activeSite == score.parts[0]:
+                #if element.value != 'ppp':
+                print("appending!!!!!!!!!!!!!!!")
+                right_hand_dynamics.append((127 * element.volumeScalar, element.getOffsetInHierarchy(score)))
+
+                print("encountered at rh ", element.value, element.volumeScalar, "dynamic becomes", right_hand_dynamics[current_dynamic_index][0])
+                #else:
+                #    print("removed ppp at ", element.offset)
+            else:
+                print("element", element)
+                print("active site", element.activeSite.activeSite)
         elif isinstance(element, music21.note.Note) or isinstance(element, music21.chord.Chord):
+            if element.activeSite.activeSite.activeSite == score.parts[1]:
+                if not already_reset:
+                    print("reset index")
+                    current_dynamic_index = 0
+                    already_reset = True
+                # update the current_dynamic_index
+                element_offset = element.getOffsetInHierarchy(score)
+                try:
+                    if element_offset >= right_hand_dynamics[current_dynamic_index+1][1]:
+                        print("incr index")
+                        current_dynamic_index += 1  
+                except:
+                    #nothing
+                    print("nothing")
             element.articulations.clear()
             if element.duration.quarterLength == Fraction(1,3):
-                # not the main melody
-                voice_highlighting = -15
-            else:
-                voice_highlighting = 10
-            element.volume.velocity = current_dynamic + voice_highlighting
+                # if it's the right hand accompaniment
+                voice_highlighting = 0.4
+            elif element.activeSite.activeSite.activeSite == score.parts[0]: # if it's the right hand melody, highlight
+            
+                voice_highlighting = 0.9
+            else: # it's the left hand chords
+                voice_highlighting = 0.6
+            try:
+                element.volume.velocity = right_hand_dynamics[current_dynamic_index][0] * voice_highlighting
+            except:
+                #print("l o r r : ", element.activeSite.activeSite == score.parts[0])
+                #print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
+                element.volume.velocity = element.volume.getDynamicContext().volumeScalar * voice_highlighting
+                print("set at ", element.volume.velocity)
+            #if isinstance(element.activeSite.activeSite, music21.stream.Measure) and element.activeSite.activeSite.measureNumber in [6,7]:
+                #print("note:", element.duration, element.volume.velocity, element.volume.getRealized())
     for e in to_remove:
         e.activeSite.remove(e)
 
@@ -243,25 +280,36 @@ def merge_hands(score: music21.stream.Score):
     score.insert(0, new_left)
     return score
 
-def add_pedal(midi_path):
+def merge_hands_pm(midi_path):
     midi_data = pretty_midi.PrettyMIDI(midi_path)
-    left_hand = midi_data.instruments[0]
+    left_hand = midi_data.instruments[1]
+    right_hand = midi_data.instruments[0]
+    right_hand.notes.extend(left_hand.notes)
+    right_hand.control_changes.extend(left_hand.control_changes)
+    midi_data.instruments.remove(left_hand)
+    midi_data.write(midi_path)
+
+
+def add_pedal(midi_path, save_path):
+    midi_data = pretty_midi.PrettyMIDI(midi_path)
+    left_hand = midi_data.instruments[1]
+    right_hand = midi_data.instruments[0]
     pedal_changes = []
     for note in left_hand.notes:
         if note.start in pedal_changes:
             continue
         pedal_changes.append(note.start)
     
-    sustain_pedal_start = pretty_midi.ControlChange(number=64, value=127, time=0) # start with pedal
+    sustain_pedal_start = pretty_midi.ControlChange(number=64, value=100, time=0) # start with pedal
     left_hand.control_changes.append(sustain_pedal_start)
     for t in pedal_changes:
-        add_at(0, t+0.1, left_hand)
-        add_at(100, t+0.2, left_hand)
-    midi_data.write(midi_path)
+        add_at(0, t+0.01, left_hand, right_hand)
+        add_at(100, t+0.02, left_hand, right_hand)
+    midi_data.write(save_path)
 
-def add_at(value, time, inst):
-    for i in range(128):
-        inst.control_changes.append(pretty_midi.ControlChange(number=i, value=value, time=time))
+def add_at(value, time, inst1, inst2):
+    for inst in [inst1, inst2]:
+        inst.control_changes.append(pretty_midi.ControlChange(number=64, value=value, time=time))
 
 
 
@@ -313,9 +361,11 @@ def interpret(midi_path, xml_path):
     #set_default_velocity(xml_score)
     overwrite_velocities(xml_score) 
 
-    idea_12(xml_score)
+    #idea_12(xml_score)
 
     idea_4(xml_score)
+
+    #idea_13()
                     
     #offset_all_velocities(xml_score, -20)
     #xml_score = merge_hands(xml_score)
@@ -323,8 +373,10 @@ def interpret(midi_path, xml_path):
     performed_score = xml_score
 
     # we will write midi in run_transfer
-    './result.mid'
-    performed_score.write("midi", midi_path)
-    add_pedal(midi_path)
+    save_midi = './result.mid'
+    pedal_path = './with_pedal.mid'
+    performed_score.write("midi", save_midi)
+    add_pedal(save_midi, pedal_path)
+    merge_hands_pm(pedal_path)
 
     return performed_score
