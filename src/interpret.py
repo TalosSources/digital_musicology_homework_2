@@ -1,29 +1,39 @@
 from fractions import Fraction
 
 import music21
+import numpy as np
 import pretty_midi
 
-import numpy as np
+from src.data import ROOT_PATH
 
 # taken from music21
 DEFAULT_VELOCITY = 30
 
-def is_left_hand(element): 
+
+def is_left_hand(element):
     for i in range(6):
         print(element)
         element = element.activeSite
         if element is None:
             return
-    
 
 
 def is_rh_accompaniement_naive(element: music21.note.Note):
     d: music21.Duration = element.duration
     return d.quarterLength == Fraction(1, 3)
 
+
 def is_rh_accompaniement_xml(element):
-    #print(f"Note duration: {element.duration.quarterLength}, note voice: {element.activeSite.id}")
-    return (isinstance(element, music21.note.Note) or isinstance(element, music21.note.Rest)) and isinstance(element.activeSite, music21.stream.Voice) and element.activeSite.id == "2"
+    # print(f"Note duration: {element.duration.quarterLength}, note voice: {element.activeSite.id}")
+    return (
+        (
+            isinstance(element, music21.note.Note)
+            or isinstance(element, music21.note.Rest)
+        )
+        and isinstance(element.activeSite, music21.stream.Voice)
+        and element.activeSite.id == "2"
+    )
+
 
 def bell_curve_velocity_and_timing(measure, element, offset):
     pos_in_motif = (offset * 3) % 6
@@ -35,7 +45,7 @@ def bell_curve_velocity_and_timing(measure, element, offset):
         if v is None:
             v = 28
         # I do this because the accompaniment seems to loud on the unperformed midi
-        #v -= 10  # think if we need this
+        # v -= 10  # think if we need this
         # the 6 8th note motif's velocities form a clear bell curve in many recordings
         velocity_increase = 0.8 * bell_curve
         element.volume.velocity = v + velocity_increase
@@ -45,7 +55,7 @@ def bell_curve_velocity_and_timing(measure, element, offset):
     base_tempo = 120
     t2 = base_tempo + 3 * bell_curve
 
-    #if (offset * 3) % 24 == 23:  # if we're in the beat just before
+    # if (offset * 3) % 24 == 23:  # if we're in the beat just before
     #    # I do this to delay each beat after the last of th 6 8th note,
     #    # as can be clearly heard in Kociuban's performance
     #    # But actually, it's not each beat, it's just before the melody.
@@ -55,8 +65,9 @@ def bell_curve_velocity_and_timing(measure, element, offset):
     # setting the new tempo at that offset
     m = music21.tempo.MetronomeMark(number=t2)
     m.offset = offset
-    #print(f"inserting tempo change {m} ({t2}) at offset {m.offset}")
+    # print(f"inserting tempo change {m} ({t2}) at offset {m.offset}")
     measure.insert(offset, m)
+
 
 def idea_4(score: music21.stream.Score):
     """
@@ -66,17 +77,21 @@ def idea_4(score: music21.stream.Score):
     print("start idea4")
     for element in score.recurse():
         if is_rh_accompaniement_xml(element):
-            #offset = flat_notes.elementOffset(element)
+            # offset = flat_notes.elementOffset(element)
             offset = element.offset
             bell_curve_velocity_and_timing(score, element, offset)
 
     for part in score.parts:
         for measure in part.getElementsByClass("Measure"):
             for element in measure.recurse():
-                if isinstance(element, music21.note.Note) and is_rh_accompaniement_xml(element):
-                    offset = element.offset # Offset in measure => we insert the tempo mark in measure
+                if isinstance(element, music21.note.Note) and is_rh_accompaniement_xml(
+                    element
+                ):
+                    offset = (
+                        element.offset
+                    )  # Offset in measure => we insert the tempo mark in measure
                     bell_curve_velocity_and_timing(measure, element, offset)
-     
+
     print("end idea4")
 
 
@@ -87,6 +102,7 @@ def get_tempo_at_offset(score, offset):
             tempo_closest_to_offset = event.number
         else:
             return tempo_closest_to_offset
+
 
 def iterate_over_dynamics(score):
     for event in score.flat.getElementsByClass(music21.dynamics.Dynamic):
@@ -162,9 +178,12 @@ def idea_12(score):
 
                 element.volume.velocity = new_velocity
 
+
 def idea_13(unperformed_midi, performed_midi):
     # Extract notes from MIDI
-    unperf_notes = unperformed_midi.instruments[0].notes + unperformed_midi.instruments[1].notes
+    unperf_notes = (
+        unperformed_midi.instruments[0].notes + unperformed_midi.instruments[1].notes
+    )
     perf_notes = performed_midi.instruments[0].notes
 
     # Obtain list of pitches and of (unperformed) velocities
@@ -175,24 +194,46 @@ def idea_13(unperformed_midi, performed_midi):
     perf_dict = dict()
     unperf_dict = dict()
     for pitch in pitches:
-        perf_dict[pitch] = sorted([note for note in perf_notes if note.pitch == pitch], key=lambda x: x.start)
-        unperf_dict[pitch] = sorted([note for note in unperf_notes if note.pitch == pitch], key=lambda x: x.start)
+        perf_dict[pitch] = sorted(
+            [note for note in perf_notes if note.pitch == pitch], key=lambda x: x.start
+        )
+        unperf_dict[pitch] = sorted(
+            [note for note in unperf_notes if note.pitch == pitch],
+            key=lambda x: x.start,
+        )
 
-    # Construct dictionary of performed notes divided according to their unperformed velocity 
+    # Construct dictionary of performed notes divided according to their unperformed velocity
     # (this is to divide notes according to dynamics information in the score: pp, p, f, etc.)
     notes = {k: [] for k in velocities}
     for vel in velocities:
         for pitch in pitches:
             if len(perf_dict[pitch]) > len(unperf_dict[pitch]):
-                notes[vel].extend([unperf_dict[pitch][i] for i in range(len(unperf_dict[pitch])) if perf_dict[pitch][i].velocity == vel])
+                notes[vel].extend(
+                    [
+                        unperf_dict[pitch][i]
+                        for i in range(len(unperf_dict[pitch]))
+                        if perf_dict[pitch][i].velocity == vel
+                    ]
+                )
             else:
-                notes[vel].extend([unperf_dict[pitch][i] for i in range(len(perf_dict[pitch])) if perf_dict[pitch][i].velocity == vel])
-    
+                notes[vel].extend(
+                    [
+                        unperf_dict[pitch][i]
+                        for i in range(len(perf_dict[pitch]))
+                        if perf_dict[pitch][i].velocity == vel
+                    ]
+                )
+
     # Compute mean and standard deviation of notes depending on their unperformed velocity
-    avg_vel = {vel: np.mean([note.velocity for note in notes[vel]]) for vel in velocities}
-    std_vel = {vel: np.std([note.velocity for note in notes[vel]]) for vel in velocities}
+    avg_vel = {
+        vel: np.mean([note.velocity for note in notes[vel]]) for vel in velocities
+    }
+    std_vel = {
+        vel: np.std([note.velocity for note in notes[vel]]) for vel in velocities
+    }
 
     return avg_vel, std_vel
+
 
 def overwrite_velocities(score: music21.stream.Score):
     to_remove = []
@@ -200,22 +241,37 @@ def overwrite_velocities(score: music21.stream.Score):
     current_dynamic_index = -1
     already_reset = False
     for element in score.recurse():
-        #print("elem", element)
-        if isinstance(element, music21.dynamics.Dynamic) or isinstance(element, music21.dynamics.DynamicWedge):
+        # print("elem", element)
+        if isinstance(element, music21.dynamics.Dynamic) or isinstance(
+            element, music21.dynamics.DynamicWedge
+        ):
             to_remove.append(element)
-            print("remomving")
-            if isinstance(element, music21.dynamics.Dynamic) and element.activeSite.activeSite == score.parts[0]:
-                #if element.value != 'ppp':
+            print("removing")
+            if (
+                isinstance(element, music21.dynamics.Dynamic)
+                and element.activeSite.activeSite == score.parts[0]
+            ):
+                # if element.value != 'ppp':
                 print("appending!!!!!!!!!!!!!!!")
-                right_hand_dynamics.append((127 * element.volumeScalar, element.getOffsetInHierarchy(score)))
+                right_hand_dynamics.append(
+                    (127 * element.volumeScalar, element.getOffsetInHierarchy(score))
+                )
 
-                print("encountered at rh ", element.value, element.volumeScalar, "dynamic becomes", right_hand_dynamics[current_dynamic_index][0])
-                #else:
+                print(
+                    "encountered at rh ",
+                    element.value,
+                    element.volumeScalar,
+                    "dynamic becomes",
+                    right_hand_dynamics[current_dynamic_index][0],
+                )
+                # else:
                 #    print("removed ppp at ", element.offset)
             else:
                 print("element", element)
                 print("active site", element.activeSite.activeSite)
-        elif isinstance(element, music21.note.Note) or isinstance(element, music21.chord.Chord):
+        elif isinstance(element, music21.note.Note) or isinstance(
+            element, music21.chord.Chord
+        ):
             if element.activeSite.activeSite.activeSite == score.parts[1]:
                 if not already_reset:
                     print("reset index")
@@ -224,53 +280,65 @@ def overwrite_velocities(score: music21.stream.Score):
                 # update the current_dynamic_index
                 element_offset = element.getOffsetInHierarchy(score)
                 try:
-                    if element_offset >= right_hand_dynamics[current_dynamic_index+1][1]:
+                    if (
+                        element_offset
+                        >= right_hand_dynamics[current_dynamic_index + 1][1]
+                    ):
                         print("incr index")
-                        current_dynamic_index += 1  
+                        current_dynamic_index += 1
                 except:
-                    #nothing
+                    # nothing
                     print("nothing")
             element.articulations.clear()
-            if element.duration.quarterLength == Fraction(1,3):
+            if element.duration.quarterLength == Fraction(1, 3):
                 # if it's the right hand accompaniment
                 voice_highlighting = 0.4
-            elif element.activeSite.activeSite.activeSite == score.parts[0]: # if it's the right hand melody, highlight
-            
+            elif (
+                element.activeSite.activeSite.activeSite == score.parts[0]
+            ):  # if it's the right hand melody, highlight
                 voice_highlighting = 0.9
-            else: # it's the left hand chords
+            else:  # it's the left hand chords
                 voice_highlighting = 0.6
             try:
-                element.volume.velocity = right_hand_dynamics[current_dynamic_index][0] * voice_highlighting
+                element.volume.velocity = (
+                    right_hand_dynamics[current_dynamic_index][0] * voice_highlighting
+                )
             except:
-                #print("l o r r : ", element.activeSite.activeSite == score.parts[0])
-                #print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
-                element.volume.velocity = element.volume.getDynamicContext().volumeScalar * voice_highlighting
+                # print("l o r r : ", element.activeSite.activeSite == score.parts[0])
+                # print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
+                element.volume.velocity = (
+                    element.volume.getDynamicContext().volumeScalar * voice_highlighting
+                )
                 print("set at ", element.volume.velocity)
-            #if isinstance(element.activeSite.activeSite, music21.stream.Measure) and element.activeSite.activeSite.measureNumber in [6,7]:
-                #print("note:", element.duration, element.volume.velocity, element.volume.getRealized())
+            # if isinstance(element.activeSite.activeSite, music21.stream.Measure) and element.activeSite.activeSite.measureNumber in [6,7]:
+            # print("note:", element.duration, element.volume.velocity, element.volume.getRealized())
     for e in to_remove:
         e.activeSite.remove(e)
+
 
 def set_default_velocity(score):
     iterate_over_dynamics(score)
     for element in score.recurse():
         if isinstance(element, music21.note.Note):
             is_left_hand(element)
-            if element.volume.velocity is None: 
+            if element.volume.velocity is None:
                 print(f"found none note: duration={element.duration.quarterLength}")
                 # default volume from music21
                 element.volume.velocity = DEFAULT_VELOCITY
-            else: 
-                print(f"not none: {element.volume.velocity}, duration = {element.duration.quarterLength}")
+            else:
+                print(
+                    f"not none: {element.volume.velocity}, duration = {element.duration.quarterLength}"
+                )
+
 
 def merge_hands(score: music21.stream.Score):
     new_left = music21.stream.Part()
     right_hand = score.parts[0]
     left_hand = score.parts[1]
-    #for element in left_hand.flat.notes:
+    # for element in left_hand.flat.notes:
     #    print("offset", element.offset)
     #    right_hand.insert(element.offset, element)
-    #left_hand.activeSite.remove(left_hand)
+    # left_hand.activeSite.remove(left_hand)
     # Create a new Score object with the merged part
 
     for n in left_hand.getElementsByClass("Measure"):
@@ -279,6 +347,7 @@ def merge_hands(score: music21.stream.Score):
     score.remove(right_hand)
     score.insert(0, new_left)
     return score
+
 
 def merge_hands_pm(midi_path):
     midi_data = pretty_midi.PrettyMIDI(midi_path)
@@ -299,18 +368,22 @@ def add_pedal(midi_path, save_path):
         if note.start in pedal_changes:
             continue
         pedal_changes.append(note.start)
-    
-    sustain_pedal_start = pretty_midi.ControlChange(number=64, value=100, time=0) # start with pedal
+
+    sustain_pedal_start = pretty_midi.ControlChange(
+        number=64, value=100, time=0
+    )  # start with pedal
     left_hand.control_changes.append(sustain_pedal_start)
     for t in pedal_changes:
-        add_at(0, t+0.01, left_hand, right_hand)
-        add_at(100, t+0.02, left_hand, right_hand)
+        add_at(0, t + 0.01, left_hand, right_hand)
+        add_at(100, t + 0.02, left_hand, right_hand)
     midi_data.write(save_path)
+
 
 def add_at(value, time, inst1, inst2):
     for inst in [inst1, inst2]:
-        inst.control_changes.append(pretty_midi.ControlChange(number=64, value=value, time=time))
-
+        inst.control_changes.append(
+            pretty_midi.ControlChange(number=64, value=value, time=time)
+        )
 
 
 def offset_all_velocities(score, offset):
@@ -358,25 +431,31 @@ def interpret(midi_path, xml_path):
 
     timing_modifier = []
 
-    #set_default_velocity(xml_score)
-    overwrite_velocities(xml_score) 
+    # set_default_velocity(xml_score)
+    print("Overwriting velocities...")
+    overwrite_velocities(xml_score)
 
-    #idea_12(xml_score)
+    # idea_12(xml_score)
 
     idea_4(xml_score)
 
-    #idea_13()
-                    
-    #offset_all_velocities(xml_score, -20)
-    #xml_score = merge_hands(xml_score)
+    # idea_13()
+
+    # offset_all_velocities(xml_score, -20)
+    # xml_score = merge_hands(xml_score)
 
     performed_score = xml_score
 
-    # we will write midi in run_transfer
-    save_midi = './result.mid'
-    pedal_path = './with_pedal.mid'
+    # save midi
+    save_path = ROOT_PATH / "results"
+    save_path.mkdir(exist_ok=True, parents=True)
+    save_midi = str(save_path / "generated_midi.mid")
+    pedal_path = str(save_path / "generated_midi_with_pedal.mid")
     performed_score.write("midi", save_midi)
+
+    print("Adding pedal...")
     add_pedal(save_midi, pedal_path)
+    print("Merging hands")
     merge_hands_pm(pedal_path)
 
     return performed_score
