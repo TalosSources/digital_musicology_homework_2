@@ -1,6 +1,6 @@
 # Digital Musicology (DH-401): Generating Expressive Performance
 
-This repository contains our solution for [the second assignment](https://hackmd.io/@RFMItzZmQbaIqDdVZ0DovA/H16QgvgeC) of Digital Musicology (DH-401) course. **TODO**
+This repository contains our solution for [the second assignment](https://hackmd.io/@RFMItzZmQbaIqDdVZ0DovA/H16QgvgeC) of Digital Musicology (DH-401) course. The assignment consisted of three tasks: (A) comparing performed and unperformed versions of a piece of our choice, (B) use our observations to make original MIDI more expressive, and (C) listen to the generated MIDI and evaluate how human-like it is. We used _Schubert Impromptu Op. 90 No. 3_ in all our experiments.
 
 We used [Aligned Scores and Performances (ASAP) dataset](https://github.com/fosfrancesco/asap-dataset) for the assignment.
 
@@ -81,7 +81,9 @@ The project structure is as follows:
 ├── run_transfer.py              # trasfer midi to performed version
 ├── README.md                    # this file
 ├── requirements.txt             # list of required packages
+├── observations.md              # observations/ideas to implement
 └── src                          # package with core implementations
+    ├── interpret.py             # core algorithms for MIDI generation
     ├── data.py                  # data loading and processing
     ├── estimators.py            # estimators for Task_A
     ├── __init__.py
