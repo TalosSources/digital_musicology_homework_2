@@ -25,9 +25,12 @@ def is_rh_accompaniement_xml(element):
     #print(f"Note duration: {element.duration.quarterLength}, note voice: {element.activeSite.id}")
     return (isinstance(element, music21.note.Note) or isinstance(element, music21.note.Rest)) and isinstance(element.activeSite, music21.stream.Voice) and element.activeSite.id == "2"
 
-def bell_curve_velocity_and_timing(measure, element, offset):
-    pos_in_motif = (offset * 3) % 6
-    bell_curve = -(pos_in_motif**2) + 5 * pos_in_motif
+def bell_curve_loop_6(i):
+    pos_in_motif = i % 6
+    return -(pos_in_motif**2) + 5 * pos_in_motif
+
+def bell_curve_velocity(element, offset):
+    bell_curve = bell_curve_loop_6(offset * 3)   
 
     # velocity manipulation
     if isinstance(element, music21.note.Note):
@@ -40,24 +43,6 @@ def bell_curve_velocity_and_timing(measure, element, offset):
         velocity_increase = 0.8 * bell_curve
         element.volume.velocity = v + velocity_increase
 
-    # tempo manipulation
-    # t = get_current_tempo(score, element.offset)
-    base_tempo = 120
-    t2 = base_tempo + 3 * bell_curve
-
-    #if (offset * 3) % 24 == 23:  # if we're in the beat just before
-    #    # I do this to delay each beat after the last of th 6 8th note,
-    #    # as can be clearly heard in Kociuban's performance
-    #    # But actually, it's not each beat, it's just before the melody.
-    #    # If we can detect the melody, we can do it automatically
-    #    t2 = base_tempo - 15
-
-    # setting the new tempo at that offset
-    m = music21.tempo.MetronomeMark(number=t2)
-    m.offset = offset
-    #print(f"inserting tempo change {m} ({t2}) at offset {m.offset}")
-    measure.insert(offset, m)
-
 def idea_4(score: music21.stream.Score):
     """
     Add an ascending bell curve shape to velocity
@@ -68,16 +53,51 @@ def idea_4(score: music21.stream.Score):
         if is_rh_accompaniement_xml(element):
             #offset = flat_notes.elementOffset(element)
             offset = element.offset
-            bell_curve_velocity_and_timing(score, element, offset)
+            bell_curve_velocity(element, offset)
 
-    for part in score.parts:
-        for measure in part.getElementsByClass("Measure"):
-            for element in measure.recurse():
-                if isinstance(element, music21.note.Note) and is_rh_accompaniement_xml(element):
-                    offset = element.offset # Offset in measure => we insert the tempo mark in measure
-                    bell_curve_velocity_and_timing(measure, element, offset)
+    # for part in score.parts:
+    #     for measure in part.getElementsByClass("Measure"):
+    #         for element in measure.recurse():
+    #             if isinstance(element, music21.note.Note) and is_rh_accompaniement_xml(element):
+    #                 offset = element.offset # Offset in measure => we insert the tempo mark in measure
+    #                 bell_curve_velocity(element, offset)
      
     print("end idea4")
+
+def add_tempo_changes(score: music21.stream.Score):
+    measure_count = len(score.parts[0].getElementsByClass('Measure'))
+    # iterate through all 8th note emplacements (24 per measure)
+    # idea: add some smoothing to the tempo, some momentum (using previous tempos, lerp or smtg)
+    for i in range(measure_count * 24): 
+        offset = Fraction(i, 3)
+        base_tempo = 120
+        t2 = base_tempo + 3 * bell_curve_loop_6(i)
+        t2 += np.random.normal(0, 5) # maybe delete
+
+        if i % 48 == 46:
+            t2 -= 5
+        if i % 48 == 27:
+            t2 -= 40
+
+        #if (offset * 3) % 24 == 23:  # if we're in the beat just before
+        #    # I do this to delay each beat after the last of th 6 8th note,
+        #    # as can be clearly heard in Kociuban's performance
+        #    # But actually, it's not each beat, it's just before the melody.
+        #    # If we can detect the melody, we can do it automatically
+        #    t2 = base_tempo - 15
+
+        # setting the new tempo at that offset
+        m = music21.tempo.MetronomeMark(number=t2)
+        m.offset = offset
+        #print(f"inserting tempo change {m} ({t2}) at offset {m.offset}")
+        score.insert(offset, m)
+
+
+def set_tempis(score):
+    # for each 8th note:
+    # compute a tempo which is the sum of the bell curve and the noise
+    # add in the slow downs
+    ...
 
 
 def get_tempo_at_offset(score, offset):
@@ -194,6 +214,28 @@ def idea_13(unperformed_midi, performed_midi):
 
     return avg_vel, std_vel
 
+def apply_idea_13(score, avgs, stds, rescaling_factor=10):
+    for note in score.recurse().notes:
+        print("new note")
+        try:
+            std = stds[note.volume.velocity]
+        except:
+            # can't find the velocity: search around the velocity
+            i = 1
+            while(True):
+                if note.volume.velocity+i in stds and not np.isnan(stds[note.volume.velocity+i]): 
+                    std = stds[note.volume.velocity+i]
+                    break
+                if note.volume.velocity-i in stds and not np.isnan(stds[note.volume.velocity-i]):
+                    std = stds[note.volume.velocity-i]
+                    break
+                i += 1
+                print(i)
+        new_vel = note.volume.velocity + np.random.normal(0, std / rescaling_factor)
+        note.volume.velocity = min(127, max(0, new_vel))
+    print("returning")
+
+
 def overwrite_velocities(score: music21.stream.Score):
     to_remove = []
     right_hand_dynamics = [(127 * 0.25, 0)] # starts with pp
@@ -204,7 +246,7 @@ def overwrite_velocities(score: music21.stream.Score):
         if isinstance(element, music21.dynamics.DynamicWedge):
             to_remove.append(element)
         if isinstance(element, music21.dynamics.Dynamic):
-            to_remove.append(element)
+            #to_remove.append(element)
             if element.activeSite.activeSite == score.parts[0]: # record right hand dynamics
                 #if element.value != 'ppp':
                 right_hand_dynamics.append((127 * element.volumeScalar, element.getOffsetInHierarchy(score)))
@@ -212,38 +254,29 @@ def overwrite_velocities(score: music21.stream.Score):
         elif isinstance(element, music21.note.Note) or isinstance(element, music21.chord.Chord):
             if element.activeSite.activeSite.activeSite == score.parts[1] or element.activeSite.activeSite == score.parts[1]:
                 if not already_reset:
-                    print("reset index")
                     current_dynamic_index = 0
                     already_reset = True
                 # update the current_dynamic_index
                 element_offset = element.getOffsetInHierarchy(score)
                 try:
                     if element_offset >= right_hand_dynamics[current_dynamic_index+1][1]:
-                        print("incr index")
                         current_dynamic_index += 1  
                 except:
                     #nothing
-                    print("nothing")
+                    ...
             element.articulations.clear()
             if element.duration.quarterLength == Fraction(1,3):
                 # if it's the right hand accompaniment
-                voice_highlighting = 0
-            elif not isinstance(element, music21.chord.Chord) and element.pitch.freq440 > 400: # if it's the right hand melody, highlight
-                voice_highlighting = 0
+                voice_highlighting = 0.3
+            elif element.activeSite.activeSite == score.parts[0] or element.activeSite.activeSite.activeSite == score.parts[0]: # if it's the right hand melody, highlight
+                voice_highlighting = 0.9
             else: # it's the left hand chords
-                voice_highlighting = 0
+                voice_highlighting = 0.6
             try:
                 element.volume.velocity = right_hand_dynamics[current_dynamic_index][0] * voice_highlighting
             except:
-                print("l o r r : ", element.activeSite.activeSite == score.parts[0])
-                print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
                 element.volume.velocity = element.volume.getDynamicContext().volumeScalar * voice_highlighting
-                print("set at ", element.volume.velocity)
-            #if element.volume.velocity != 0 and element.activeSite.activeSite.activeSite != score.parts[0] and element.activeSite.activeSite != score.parts[0]:
-            #    print("what", element, "and ", element.volume.velocity)
-            #    is_left_hand(element)
-            element.volume.velocityIsRelative = False
-            element.volume.velocity = 0
+
     for e in to_remove:
         e.activeSite.remove(e)
 
@@ -316,10 +349,19 @@ def offset_all_velocities(score, offset):
             if element.volume.velocity is not None:
                 element.volume.velocity += offset
 
+def remove_dynamics(score: music21.stream.Score):
+    to_remove = []
+    for element in score.recurse():
+        if isinstance(element, music21.dynamics.Dynamics):
+            to_remove.add(element)
+    for e in to_remove:
+        e.activeSite.remove(e)
+    
+
 
 # Main function of the assignment, takes an unperformed MIDI or
 #  XML path and outputs a performed midi
-def interpret(midi_path, xml_path):
+def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
     """
     Main idea:
         Velocity changes can be done "in-place".
@@ -338,8 +380,10 @@ def interpret(midi_path, xml_path):
             local: for example, the 8th note being rushed a bit or coming too late, without affecting the rest
             global: for example, slowing down at the end of a phrase. This should affect all the score (displace everything by a bit)
     """
-    midi_score: music21.stream.Score = music21.converter.parse(midi_path)
+    unperformed_midi_score: music21.stream.Score = music21.converter.parse(unperformed_midi_path)
     xml_score: music21.stream.Score = music21.converter.parse(xml_path)
+    unperformed_pm = pretty_midi.PrettyMIDI(unperformed_midi_path)
+    performed_pms  = [pretty_midi.PrettyMIDI(performed_midi_path) for performed_midi_path in performed_midi_paths]
 
     # Let's say I have a note n of onset o, duration d.
     # If I want to make it f times as long (in other words, stretch the time by f between o and o+d):
@@ -357,25 +401,19 @@ def interpret(midi_path, xml_path):
 
     #set_default_velocity(xml_score)
     overwrite_velocities(xml_score)
-    for note in xml_score.flat.notes:
-        try:
-            if note.volume.velocity != 0:
-                print("not 0 velocity:", is_left_hand(note), "velocity=", note.volume.velocity)
-            if note.volume.getRealized(False) != 0:
-                print("not 0 realized:", is_left_hand(note), "realized=", note.volume.getRealized(False))
-        except:
-            if note.measureNumber == 3:
-                print("no volume?", note)
 
-    for part in xml_score.parts:
-        print(part)
+    idea_12(xml_score)
 
+    idea_4(xml_score)
 
-    #idea_12(xml_score)
+    #remove_dynamics(xml_score)
 
-    #idea_4(xml_score)
+    avg_vel, std_vel = idea_13(unperformed_pm, performed_pms[0])
+    print("avg", avg_vel)
+    print("std", std_vel)
+    apply_idea_13(xml_score, avg_vel, std_vel)
 
-    #idea_13()
+    add_tempo_changes(xml_score)
                     
     #offset_all_velocities(xml_score, -20)
     #xml_score = merge_hands(xml_score)
@@ -386,7 +424,7 @@ def interpret(midi_path, xml_path):
     save_midi = './result.mid'
     pedal_path = './with_pedal.mid'
     performed_score.write("midi", save_midi)
-    #add_pedal(save_midi, pedal_path)
-    #merge_hands_pm(pedal_path)
+    add_pedal(save_midi, pedal_path)
+    merge_hands_pm(pedal_path)
 
     return performed_score
