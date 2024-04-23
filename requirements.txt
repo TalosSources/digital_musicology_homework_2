@@ -5,6 +5,7 @@ pandas
 seaborn
 music21
 iteration_utilities
+pretty_midi
 git+https://github.com/quadrismegistus/prosodic.git
 
 black
