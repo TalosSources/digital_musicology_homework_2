@@ -163,6 +163,38 @@ def idea_12(score):
 
                 element.volume.velocity = new_velocity
 
+def idea_13(unperformed_midi, performed_midi):
+    # Extract notes from MIDI
+    unperf_notes = unperformed_midi.instruments[0].notes + unperformed_midi.instruments[1].notes
+    perf_notes = performed_midi.instruments[0].notes
+
+    # Obtain list of pitches and of (unperformed) velocities
+    pitches = set([note.pitch for note in unperf_notes])
+    velocities = list(set([note.velocity for note in unperf_notes]))
+
+    # Construct dictionaries of performed and unperformed notes divided according to pitch
+    perf_dict = dict()
+    unperf_dict = dict()
+    for pitch in pitches:
+        perf_dict[pitch] = sorted([note for note in perf_notes if note.pitch == pitch], key=lambda x: x.start)
+        unperf_dict[pitch] = sorted([note for note in unperf_notes if note.pitch == pitch], key=lambda x: x.start)
+
+    # Construct dictionary of performed notes divided according to their unperformed velocity 
+    # (this is to divide notes according to dynamics information in the score: pp, p, f, etc.)
+    notes = {k: [] for k in velocities}
+    for vel in velocities:
+        for pitch in pitches:
+            if len(perf_dict[pitch]) > len(unperf_dict[pitch]):
+                notes[vel].extend([unperf_dict[pitch][i] for i in range(len(unperf_dict[pitch])) if perf_dict[pitch][i].velocity == vel])
+            else:
+                notes[vel].extend([unperf_dict[pitch][i] for i in range(len(perf_dict[pitch])) if perf_dict[pitch][i].velocity == vel])
+    
+    # Compute mean and standard deviation of notes depending on their unperformed velocity
+    avg_vel = {vel: np.mean([note.velocity for note in notes[vel]]) for vel in velocities}
+    std_vel = {vel: np.std([note.velocity for note in notes[vel]]) for vel in velocities}
+
+    return avg_vel, std_vel
+
 def overwrite_velocities(score: music21.stream.Score):
     to_remove = []
     current_dynamic = 30
