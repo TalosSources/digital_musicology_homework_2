@@ -196,27 +196,21 @@ def idea_13(unperformed_midi, performed_midi):
 
 def overwrite_velocities(score: music21.stream.Score):
     to_remove = []
-    right_hand_dynamics = [(127 * 0.25, 0)]
+    right_hand_dynamics = [(127 * 0.25, 0)] # starts with pp
     current_dynamic_index = -1
     already_reset = False
     for element in score.recurse():
         #print("elem", element)
-        if isinstance(element, music21.dynamics.Dynamic) or isinstance(element, music21.dynamics.DynamicWedge):
+        if isinstance(element, music21.dynamics.DynamicWedge):
             to_remove.append(element)
-            print("remomving")
-            if isinstance(element, music21.dynamics.Dynamic) and element.activeSite.activeSite == score.parts[0]:
+        if isinstance(element, music21.dynamics.Dynamic):
+            to_remove.append(element)
+            if element.activeSite.activeSite == score.parts[0]: # record right hand dynamics
                 #if element.value != 'ppp':
-                print("appending!!!!!!!!!!!!!!!")
                 right_hand_dynamics.append((127 * element.volumeScalar, element.getOffsetInHierarchy(score)))
 
-                print("encountered at rh ", element.value, element.volumeScalar, "dynamic becomes", right_hand_dynamics[current_dynamic_index][0])
-                #else:
-                #    print("removed ppp at ", element.offset)
-            else:
-                print("element", element)
-                print("active site", element.activeSite.activeSite)
         elif isinstance(element, music21.note.Note) or isinstance(element, music21.chord.Chord):
-            if element.activeSite.activeSite.activeSite == score.parts[1]:
+            if element.activeSite.activeSite.activeSite == score.parts[1] or element.activeSite.activeSite == score.parts[1]:
                 if not already_reset:
                     print("reset index")
                     current_dynamic_index = 0
@@ -233,21 +227,23 @@ def overwrite_velocities(score: music21.stream.Score):
             element.articulations.clear()
             if element.duration.quarterLength == Fraction(1,3):
                 # if it's the right hand accompaniment
-                voice_highlighting = 0.4
-            elif element.activeSite.activeSite.activeSite == score.parts[0]: # if it's the right hand melody, highlight
-            
-                voice_highlighting = 0.9
+                voice_highlighting = 0
+            elif not isinstance(element, music21.chord.Chord) and element.pitch.freq440 > 400: # if it's the right hand melody, highlight
+                voice_highlighting = 0
             else: # it's the left hand chords
-                voice_highlighting = 0.6
+                voice_highlighting = 0
             try:
                 element.volume.velocity = right_hand_dynamics[current_dynamic_index][0] * voice_highlighting
             except:
-                #print("l o r r : ", element.activeSite.activeSite == score.parts[0])
-                #print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
+                print("l o r r : ", element.activeSite.activeSite == score.parts[0])
+                print("index:", current_dynamic_index, " rhds:", len(right_hand_dynamics))
                 element.volume.velocity = element.volume.getDynamicContext().volumeScalar * voice_highlighting
                 print("set at ", element.volume.velocity)
-            #if isinstance(element.activeSite.activeSite, music21.stream.Measure) and element.activeSite.activeSite.measureNumber in [6,7]:
-                #print("note:", element.duration, element.volume.velocity, element.volume.getRealized())
+            #if element.volume.velocity != 0 and element.activeSite.activeSite.activeSite != score.parts[0] and element.activeSite.activeSite != score.parts[0]:
+            #    print("what", element, "and ", element.volume.velocity)
+            #    is_left_hand(element)
+            element.volume.velocityIsRelative = False
+            element.volume.velocity = 0
     for e in to_remove:
         e.activeSite.remove(e)
 
@@ -288,6 +284,7 @@ def merge_hands_pm(midi_path):
     right_hand.control_changes.extend(left_hand.control_changes)
     midi_data.instruments.remove(left_hand)
     midi_data.write(midi_path)
+    print("wrote at ", midi_path)
 
 
 def add_pedal(midi_path, save_path):
@@ -359,11 +356,24 @@ def interpret(midi_path, xml_path):
     timing_modifier = []
 
     #set_default_velocity(xml_score)
-    overwrite_velocities(xml_score) 
+    overwrite_velocities(xml_score)
+    for note in xml_score.flat.notes:
+        try:
+            if note.volume.velocity != 0:
+                print("not 0 velocity:", is_left_hand(note), "velocity=", note.volume.velocity)
+            if note.volume.getRealized(False) != 0:
+                print("not 0 realized:", is_left_hand(note), "realized=", note.volume.getRealized(False))
+        except:
+            if note.measureNumber == 3:
+                print("no volume?", note)
+
+    for part in xml_score.parts:
+        print(part)
+
 
     #idea_12(xml_score)
 
-    idea_4(xml_score)
+    #idea_4(xml_score)
 
     #idea_13()
                     
@@ -376,7 +386,7 @@ def interpret(midi_path, xml_path):
     save_midi = './result.mid'
     pedal_path = './with_pedal.mid'
     performed_score.write("midi", save_midi)
-    add_pedal(save_midi, pedal_path)
-    merge_hands_pm(pedal_path)
+    #add_pedal(save_midi, pedal_path)
+    #merge_hands_pm(pedal_path)
 
     return performed_score
