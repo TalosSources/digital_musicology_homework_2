@@ -1,4 +1,5 @@
 import random
+from collections import defaultdict
 from fractions import Fraction
 
 import music21
@@ -578,10 +579,23 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
 
     # remove_dynamics(xml_score)
 
-    avg_vel, std_vel = idea_13(unperformed_pm, performed_pms[0])
-    print("avg", avg_vel)
-    print("std", std_vel)
-    apply_idea_13(xml_score, avg_vel, std_vel)
+    avgs = defaultdict(float)
+    stds = defaultdict(float)
+    for i in range(len(performed_pms)):
+        avg_vel, std_vel = idea_13(unperformed_pm, performed_pms[i])
+        for k, v in avg_vel.items():
+            avgs[k] += v
+        for k, v in std_vel.items():
+            stds[k] += v
+        print("avg vel", avg_vel)
+        print("stdvel ", std_vel)
+    for k, v in avgs.items():
+        avgs[k] = v / len(performed_pms)
+    for k, v in stds.items():
+        stds[k] = v / len(performed_pms)
+    print("full avg vel", avgs)
+    print("full std vel", stds)
+    apply_idea_13(xml_score, avgs, stds)
 
     add_tempo_changes(xml_score)
 

@@ -43,7 +43,15 @@ def run_transfer(midi_root_path, save_audio):
     xml_path = DATASET_PATH / midi_root_path / "xml_score.musicxml"
     midi_path = DATASET_PATH / midi_root_path / "midi_score.mid"
 
-    performed_midi_paths = [str(DATASET_PATH / midi_root_path / "Hou06M.mid")]
+    performed_midi_paths = []
+    performed_midis = os.listdir(str(DATASET_PATH / midi_root_path))
+    for performed_midi_name in performed_midis:
+        if not performed_midi_name.endswith("mid"):
+            continue
+        if performed_midi_name == "midi_score.mid":
+            continue
+        performed_midi_path = DATASET_PATH / midi_root_path / performed_midi_name
+        performed_midi_paths.append(str(performed_midi_path))
 
     interpret(str(midi_path), str(xml_path), performed_midi_paths)
     save_midi(

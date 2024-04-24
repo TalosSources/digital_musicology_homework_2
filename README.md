@@ -82,18 +82,26 @@ The project structure is as follows:
 ├── data                         # dir for all data, including raw and processed datasets
 │   └── asap-dataset
 ├── results                      # dir with original midi and its generated_versions
-├── experiments.ipynb            # scripts for figures and tables
-├── run_transfer.py              # trasfer midi to performed version
+│   ├── generated_midi.mid
+│   ├── generated_midi.wav
+│   ├── generated_midi_with_pedal.mid
+│   ├── generated_midi_with_pedal.wav
+│   ├── original_midi.mid
+│   ├── original_midi.wav
+│   ├── xml_midi.mid
+│   └── xml_midi.wav
+├── experiments.ipynb            # used for experiments
+├── run_transfer.py              # Core script, trasfer midi to performed version
 ├── README.md                    # this file
 ├── requirements.txt             # list of required packages
 ├── observations.md              # observations/ideas to implement
 └── src                          # package with core implementations
-    ├── interpret.py             # core algorithms for MIDI generation
-    ├── data.py                  # data loading and processing
-    ├── estimators.py            # estimators for Task_A
+    ├── interpret.py             # core algorithms for MIDI generation (main source)
+    ├── data.py                  # data loading and processing, used for experiments
+    ├── midi_transfer.py         # used for experiments (outdated)
+    ├── estimators.py            # used for experiments (outdated)
     ├── __init__.py
-    ├── onset_distribution.py    # methods and plots used for Task_B
-    └── plots.py                 # plot functions for Task_A
+    └── plots.py                 # used for experiments (outdated)
 ```
 
 ## Authors
