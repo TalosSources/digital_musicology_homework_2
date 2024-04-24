@@ -481,12 +481,12 @@ def randomize_note_duration(midi_data, percentage=0.5):
 
 def randomize_note_onsets(midi_data, percentage=0.5):
     bpm = 125
-    eighth_note_duration = 60 / (bpm * 2)
+    beat_duration = 60 / bpm
     for instrument in midi_data.instruments:
         for note in instrument.notes:
             # Calculate the random adjustment factor
             adjustment_factor = random.uniform(-percentage / 100, percentage / 100)
-            adjustment = eighth_note_duration * adjustment_factor
+            adjustment = beat_duration * adjustment_factor
             # Adjust the note's onset
             note.start = max(0, note.start + adjustment)
             note.end = note.end + adjustment
@@ -598,7 +598,7 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
     performed_score.write("midi", save_midi)
 
     print("Adding randomization")
-    randomize_score(save_midi, onset_percentage=3, duration_percentage=30)
+    randomize_score(save_midi, onset_percentage=1, duration_percentage=5)
 
     print("Adding pedal...")
     add_pedal(save_midi, pedal_path)
