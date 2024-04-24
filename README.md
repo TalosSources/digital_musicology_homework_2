@@ -70,6 +70,10 @@ python3 run_transfer.py
 
 See `run_transfer.py --help` for command-line arguments.
 
+## Results
+
+Generated MIDI is located in `results` dir. Our final MIDI is called `generated_midi_with_pedal.mid`. We provide corresponding audio version, however, it is better to use piano roll (like [this one](https://signal.vercel.app/edit)).
+
 ## Project Structure
 
 The project structure is as follows:
@@ -77,6 +81,7 @@ The project structure is as follows:
 ```bash
 ├── data                         # dir for all data, including raw and processed datasets
 │   └── asap-dataset
+├── results                      # dir with original midi and its generated_versions
 ├── experiments.ipynb            # scripts for figures and tables
 ├── run_transfer.py              # trasfer midi to performed version
 ├── README.md                    # this file

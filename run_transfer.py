@@ -2,15 +2,20 @@ import argparse
 import os
 import shutil
 
+import music21
+
 from src.data import DATASET_PATH, ROOT_PATH
 from src.interpret import interpret
 
 
-def save_midi(original_midi_path, save_audio):
+def save_midi(original_xml_path, original_midi_path, save_audio):
     # save midi
     save_path = ROOT_PATH / "results"
 
     # write original_midi
+    xml_score: music21.stream.Score = music21.converter.parse(original_xml_path)
+    xml_score.write("midi", str(save_path / "xml_midi.mid"))
+
     shutil.copy(str(original_midi_path), str(save_path / "original_midi.mid"))
     # write generated_midi
     # is is done in interpret itself
@@ -18,6 +23,10 @@ def save_midi(original_midi_path, save_audio):
     if save_audio:
         # create wav from midi
         filename = str(save_path / "original_midi")
+        cmd = f"fluidsynth -ni font.sf2 {filename}.mid -F {filename}.wav -r 16000 > /dev/null"
+        os.system(cmd)
+
+        filename = str(save_path / "xml_midi")
         cmd = f"fluidsynth -ni font.sf2 {filename}.mid -F {filename}.wav -r 16000 > /dev/null"
         os.system(cmd)
 
@@ -34,8 +43,11 @@ def run_transfer(midi_root_path, save_audio):
     xml_path = DATASET_PATH / midi_root_path / "xml_score.musicxml"
     midi_path = DATASET_PATH / midi_root_path / "midi_score.mid"
 
-    interpret(midi_path, xml_path)
+    performed_midi_paths = [str(DATASET_PATH / midi_root_path / "Hou06M.mid")]
+
+    interpret(str(midi_path), str(xml_path), performed_midi_paths)
     save_midi(
+        original_xml_path=xml_path,
         original_midi_path=midi_path,
         save_audio=save_audio,
     )

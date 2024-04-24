@@ -1,9 +1,9 @@
+import random
 from fractions import Fraction
 
 import music21
 import numpy as np
 import pretty_midi
-import random
 
 from src.data import ROOT_PATH
 
@@ -40,8 +40,9 @@ def bell_curve_loop_6(i):
     pos_in_motif = i % 6
     return -(pos_in_motif**2) + 5 * pos_in_motif
 
+
 def bell_curve_velocity(element, offset):
-    bell_curve = bell_curve_loop_6(offset * 3)   
+    bell_curve = bell_curve_loop_6(offset * 3)
 
     # velocity manipulation
     if isinstance(element, music21.note.Note):
@@ -53,6 +54,7 @@ def bell_curve_velocity(element, offset):
         # the 6 8th note motif's velocities form a clear bell curve in many recordings
         velocity_increase = 0.8 * bell_curve
         element.volume.velocity = v + velocity_increase
+
 
 def idea_4(score: music21.stream.Score):
     """
@@ -72,18 +74,19 @@ def idea_4(score: music21.stream.Score):
     #             if isinstance(element, music21.note.Note) and is_rh_accompaniement_xml(element):
     #                 offset = element.offset # Offset in measure => we insert the tempo mark in measure
     #                 bell_curve_velocity(element, offset)
-     
+
     print("end idea4")
 
+
 def add_tempo_changes(score: music21.stream.Score):
-    measure_count = len(score.parts[0].getElementsByClass('Measure'))
+    measure_count = len(score.parts[0].getElementsByClass("Measure"))
     # iterate through all 8th note emplacements (24 per measure)
     # idea: add some smoothing to the tempo, some momentum (using previous tempos, lerp or smtg)
-    for i in range(measure_count * 24): 
+    for i in range(measure_count * 24):
         offset = Fraction(i, 3)
         base_tempo = 120
         t2 = base_tempo + 3 * bell_curve_loop_6(i)
-        t2 += np.random.normal(0, 5) # maybe delete
+        t2 += np.random.normal(0, 5)  # maybe delete
 
         if i % 48 == 46:
             t2 -= 5
@@ -92,7 +95,7 @@ def add_tempo_changes(score: music21.stream.Score):
         # if i == 84 * 24:
         #     t2 -= 40
 
-        #if (offset * 3) % 24 == 23:  # if we're in the beat just before
+        # if (offset * 3) % 24 == 23:  # if we're in the beat just before
         #    # I do this to delay each beat after the last of th 6 8th note,
         #    # as can be clearly heard in Kociuban's performance
         #    # But actually, it's not each beat, it's just before the melody.
@@ -102,7 +105,7 @@ def add_tempo_changes(score: music21.stream.Score):
         # setting the new tempo at that offset
         m = music21.tempo.MetronomeMark(number=t2)
         m.offset = offset
-        #print(f"inserting tempo change {m} ({t2}) at offset {m.offset}")
+        # print(f"inserting tempo change {m} ({t2}) at offset {m.offset}")
         score.insert(offset, m)
 
 
@@ -110,7 +113,7 @@ def set_tempis(score):
     # for each 8th note:
     # compute a tempo which is the sum of the bell curve and the noise
     # add in the slow downs
-    ...
+    pass
 
 
 def get_tempo_at_offset(score, offset):
@@ -252,6 +255,7 @@ def idea_13(unperformed_midi, performed_midi):
 
     return avg_vel, std_vel
 
+
 def apply_idea_13(score, avgs, stds, rescaling_factor=10):
     for note in score.recurse().notes:
         print("new note")
@@ -260,19 +264,22 @@ def apply_idea_13(score, avgs, stds, rescaling_factor=10):
         except:
             # can't find the velocity: search around the velocity
             i = 1
-            while(True):
-                if note.volume.velocity+i in stds and not np.isnan(stds[note.volume.velocity+i]): 
-                    std = stds[note.volume.velocity+i]
+            while True:
+                if note.volume.velocity + i in stds and not np.isnan(
+                    stds[note.volume.velocity + i]
+                ):
+                    std = stds[note.volume.velocity + i]
                     break
-                if note.volume.velocity-i in stds and not np.isnan(stds[note.volume.velocity-i]):
-                    std = stds[note.volume.velocity-i]
+                if note.volume.velocity - i in stds and not np.isnan(
+                    stds[note.volume.velocity - i]
+                ):
+                    std = stds[note.volume.velocity - i]
                     break
                 i += 1
                 print(i)
         new_vel = note.volume.velocity + np.random.normal(0, std / rescaling_factor)
         note.volume.velocity = min(127, max(0, new_vel))
     print("returning")
-
 
 
 def overwrite_part_velocities(
@@ -453,6 +460,7 @@ def offset_all_velocities(score, offset):
             if element.volume.velocity is not None:
                 element.volume.velocity += offset
 
+
 def remove_dynamics(score: music21.stream.Score):
     to_remove = []
     for element in score.recurse():
@@ -460,13 +468,13 @@ def remove_dynamics(score: music21.stream.Score):
             to_remove.add(element)
     for e in to_remove:
         e.activeSite.remove(e)
-    
+
 
 def randomize_note_duration(midi_data, percentage=0.5):
     for instrument in midi_data.instruments:
         for note in instrument.notes:
             # Calculate random adjustment factor
-            random_percent = random.uniform(1 - percentage/50, 1 + percentage/200)
+            random_percent = random.uniform(1 - percentage / 50, 1 + percentage / 200)
             note_end_time = note.start + (note.end - note.start) * random_percent
             note.end = note_end_time
 
@@ -477,11 +485,12 @@ def randomize_note_onsets(midi_data, percentage=0.5):
     for instrument in midi_data.instruments:
         for note in instrument.notes:
             # Calculate the random adjustment factor
-            adjustment_factor = random.uniform(-percentage/100, percentage/100)
+            adjustment_factor = random.uniform(-percentage / 100, percentage / 100)
             adjustment = eighth_note_duration * adjustment_factor
             # Adjust the note's onset
             note.start = max(0, note.start + adjustment)
             note.end = note.end + adjustment
+
 
 def find_same_pitch_notes(data):
     notes = {}
@@ -492,25 +501,25 @@ def find_same_pitch_notes(data):
             notes[note.pitch] = [note]
     return notes
 
+
 def remove_overlap(notes):
     notes = sorted(notes, key=lambda x: x.start)
     for i in range(1, len(notes)):
-        if notes[i].start < notes[i-1].end:
-            notes[i-1].end = notes[i].start - 0.001
+        if notes[i].start < notes[i - 1].end:
+            notes[i - 1].end = notes[i].start - 0.001
 
-        
+
 def randomize_score(midi_path, onset_percentage=2, duration_percentage=5):
-    
     midi_data = pretty_midi.PrettyMIDI(midi_path)
     randomize_note_onsets(midi_data, onset_percentage)
     randomize_note_duration(midi_data, duration_percentage)
-            
+
     # cleanup
     for instrument in midi_data.instruments:
         same_pitch = find_same_pitch_notes(instrument)
         for pitch, notes in same_pitch.items():
             remove_overlap(notes)
-    
+
     midi_data.write(midi_path)
 
 
@@ -535,10 +544,15 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
             local: for example, the 8th note being rushed a bit or coming too late, without affecting the rest
             global: for example, slowing down at the end of a phrase. This should affect all the score (displace everything by a bit)
     """
-    unperformed_midi_score: music21.stream.Score = music21.converter.parse(unperformed_midi_path)
+    unperformed_midi_score: music21.stream.Score = music21.converter.parse(
+        unperformed_midi_path
+    )
     xml_score: music21.stream.Score = music21.converter.parse(xml_path)
     unperformed_pm = pretty_midi.PrettyMIDI(unperformed_midi_path)
-    performed_pms  = [pretty_midi.PrettyMIDI(performed_midi_path) for performed_midi_path in performed_midi_paths]
+    performed_pms = [
+        pretty_midi.PrettyMIDI(performed_midi_path)
+        for performed_midi_path in performed_midi_paths
+    ]
 
     # Let's say I have a note n of onset o, duration d.
     # If I want to make it f times as long (in other words, stretch the time by f between o and o+d):
@@ -558,11 +572,11 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
     print("Overwriting velocities...")
     overwrite_velocities(xml_score)
 
-    #idea_12(xml_score)
+    # idea_12(xml_score)
 
     idea_4(xml_score)
 
-    #remove_dynamics(xml_score)
+    # remove_dynamics(xml_score)
 
     avg_vel, std_vel = idea_13(unperformed_pm, performed_pms[0])
     print("avg", avg_vel)
@@ -570,9 +584,9 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
     apply_idea_13(xml_score, avg_vel, std_vel)
 
     add_tempo_changes(xml_score)
-                    
-    #offset_all_velocities(xml_score, -20)
-    #xml_score = merge_hands(xml_score)
+
+    # offset_all_velocities(xml_score, -20)
+    # xml_score = merge_hands(xml_score)
 
     performed_score = xml_score
 
@@ -582,8 +596,8 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
     save_midi = str(save_path / "generated_midi.mid")
     pedal_path = str(save_path / "generated_midi_with_pedal.mid")
     performed_score.write("midi", save_midi)
-    
-    print('adding randomization')
+
+    print("Adding randomization")
     randomize_score(save_midi, onset_percentage=3, duration_percentage=30)
 
     print("Adding pedal...")
