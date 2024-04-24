@@ -3,6 +3,7 @@ from fractions import Fraction
 import music21
 import numpy as np
 import pretty_midi
+import random
 
 from src.data import ROOT_PATH
 
@@ -88,6 +89,8 @@ def add_tempo_changes(score: music21.stream.Score):
             t2 -= 5
         if i % 48 == 27:
             t2 -= 40
+        # if i == 84 * 24:
+        #     t2 -= 40
 
         #if (offset * 3) % 24 == 23:  # if we're in the beat just before
         #    # I do this to delay each beat after the last of th 6 8th note,
@@ -459,6 +462,57 @@ def remove_dynamics(score: music21.stream.Score):
         e.activeSite.remove(e)
     
 
+def randomize_note_duration(midi_data, percentage=0.5):
+    for instrument in midi_data.instruments:
+        for note in instrument.notes:
+            # Calculate random adjustment factor
+            random_percent = random.uniform(1 - percentage/50, 1 + percentage/200)
+            note_end_time = note.start + (note.end - note.start) * random_percent
+            note.end = note_end_time
+
+
+def randomize_note_onsets(midi_data, percentage=0.5):
+    bpm = 125
+    eighth_note_duration = 60 / (bpm * 2)
+    for instrument in midi_data.instruments:
+        for note in instrument.notes:
+            # Calculate the random adjustment factor
+            adjustment_factor = random.uniform(-percentage/100, percentage/100)
+            adjustment = eighth_note_duration * adjustment_factor
+            # Adjust the note's onset
+            note.start = max(0, note.start + adjustment)
+            note.end = note.end + adjustment
+
+def find_same_pitch_notes(data):
+    notes = {}
+    for note in data.notes:
+        if note.pitch in notes:
+            notes[note.pitch].append(note)
+        else:
+            notes[note.pitch] = [note]
+    return notes
+
+def remove_overlap(notes):
+    notes = sorted(notes, key=lambda x: x.start)
+    for i in range(1, len(notes)):
+        if notes[i].start < notes[i-1].end:
+            notes[i-1].end = notes[i].start - 0.001
+
+        
+def randomize_score(midi_path, onset_percentage=2, duration_percentage=5):
+    
+    midi_data = pretty_midi.PrettyMIDI(midi_path)
+    randomize_note_onsets(midi_data, onset_percentage)
+    randomize_note_duration(midi_data, duration_percentage)
+            
+    # cleanup
+    for instrument in midi_data.instruments:
+        same_pitch = find_same_pitch_notes(instrument)
+        for pitch, notes in same_pitch.items():
+            remove_overlap(notes)
+    
+    midi_data.write(midi_path)
+
 
 # Main function of the assignment, takes an unperformed MIDI or
 #  XML path and outputs a performed midi
@@ -528,6 +582,9 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
     save_midi = str(save_path / "generated_midi.mid")
     pedal_path = str(save_path / "generated_midi_with_pedal.mid")
     performed_score.write("midi", save_midi)
+    
+    print('adding randomization')
+    randomize_score(save_midi, onset_percentage=3, duration_percentage=30)
 
     print("Adding pedal...")
     add_pedal(save_midi, pedal_path)
