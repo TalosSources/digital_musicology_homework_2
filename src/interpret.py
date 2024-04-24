@@ -598,7 +598,7 @@ def interpret(unperformed_midi_path, xml_path, performed_midi_paths):
     performed_score.write("midi", save_midi)
 
     print("Adding randomization")
-    randomize_score(save_midi, onset_percentage=3, duration_percentage=30)
+    randomize_score(save_midi, onset_percentage=2, duration_percentage=5)
 
     print("Adding pedal...")
     add_pedal(save_midi, pedal_path)
